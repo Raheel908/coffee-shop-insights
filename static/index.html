@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Shop Insights</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f0eb; color: #2d2118; min-height: 100vh; }
+    header { background: #3b1f0e; color: #f5efe8; padding: 1.25rem 2rem; display: flex; align-items: center; gap: 0.75rem; }
+    header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 0.02em; }
+    .coffee-icon { font-size: 1.6rem; }
+    main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* KPI cards */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .kpi { background: #fff; border-radius: 12px; padding: 1.25rem 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .kpi .label { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #7a5c40; margin-bottom: .35rem; }
+    .kpi .value { font-size: 1.9rem; font-weight: 700; color: #3b1f0e; }
+    .kpi .sub   { font-size: .8rem; color: #a07850; margin-top: .2rem; }
+
+    /* Charts */
+    .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 2rem; }
+    @media (max-width: 700px) { .charts { grid-template-columns: 1fr; } }
+    .card { background: #fff; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .card h2 { font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; color: #7a5c40; margin-bottom: 1rem; }
+    canvas { max-height: 240px; }
+
+    /* Insights */
+    #insights-card { margin-bottom: 2rem; }
+    #insights-text { white-space: pre-wrap; line-height: 1.7; font-size: .95rem; color: #3d2a1a; }
+    .btn { cursor: pointer; background: #3b1f0e; color: #fff; border: none; border-radius: 8px; padding: .6rem 1.2rem; font-size: .9rem; font-weight: 600; transition: background .15s; }
+    .btn:hover { background: #5a3520; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Q&A */
+    #qa-card { }
+    .qa-row { display: flex; gap: .75rem; margin-bottom: 1rem; }
+    #q-input { flex: 1; border: 1px solid #d0bfad; border-radius: 8px; padding: .6rem .9rem; font-size: .95rem; outline: none; }
+    #q-input:focus { border-color: #3b1f0e; }
+    #answer-box { background: #fdf8f4; border-radius: 8px; padding: 1rem; font-size: .95rem; line-height: 1.7; min-height: 60px; color: #2d2118; }
+    #tool-log { font-size: .75rem; color: #9a7a60; margin-top: .5rem; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .suggestions { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+    .chip { cursor: pointer; background: #f0e6da; border: 1px solid #d0bfad; border-radius: 20px; padding: .3rem .8rem; font-size: .8rem; color: #5a3a20; transition: background .15s; }
+    .chip:hover { background: #e0d0c0; }
+  </style>
+</head>
+<body>
+<header>
+  <span class="coffee-icon">☕</span>
+  <h1>Coffee Shop Insights</h1>
+</header>
+<main>
+
+  <!-- KPI Row -->
+  <div class="kpis">
+    <div class="kpi"><div class="label">Total Revenue</div><div class="value" id="kpi-revenue">—</div><div class="sub">Jan–Mar 2024</div></div>
+    <div class="kpi"><div class="label">Avg Ticket</div><div class="value" id="kpi-ticket">—</div><div class="sub">per transaction</div></div>
+    <div class="kpi"><div class="label">Transactions</div><div class="value" id="kpi-txns">—</div><div class="sub">total orders</div></div>
+    <div class="kpi"><div class="label">Repeat-Customer Rate</div><div class="value" id="kpi-repeat">—</div><div class="sub" id="kpi-repeat-sub">—</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts">
+    <div class="card">
+      <h2>Revenue by Day</h2>
+      <canvas id="chart-revenue"></canvas>
+    </div>
+    <div class="card">
+      <h2>Top Items by Revenue</h2>
+      <canvas id="chart-items"></canvas>
+    </div>
+  </div>
+
+  <!-- AI Insights -->
+  <div class="card" id="insights-card">
+    <h2 style="display:flex;justify-content:space-between;align-items:center;">
+      AI Insights
+      <button class="btn" id="insights-btn" onclick="loadInsights()">Generate Insights</button>
+    </h2>
+    <div id="insights-text" style="margin-top:.75rem; color:#9a7a60;">Click "Generate Insights" to get AI analysis of your data.</div>
+  </div>
+
+  <!-- Q&A -->
+  <div class="card" id="qa-card">
+    <h2>Ask a Question</h2>
+    <div class="suggestions">
+      <span class="chip" onclick="ask('What was my best day?')">What was my best day?</span>
+      <span class="chip" onclick="ask('Who are my top customers?')">Who are my top customers?</span>
+      <span class="chip" onclick="ask('What is my repeat customer rate?')">Repeat customer rate?</span>
+      <span class="chip" onclick="ask('Which items make the most money?')">Top items by revenue?</span>
+      <span class="chip" onclick="ask('What is my average ticket size?')">Avg ticket size?</span>
+    </div>
+    <div class="qa-row">
+      <input id="q-input" type="text" placeholder="e.g. What was my best day?" onkeydown="if(event.key==='Enter') ask()" />
+      <button class="btn" id="ask-btn" onclick="ask()">Ask</button>
+    </div>
+    <div id="answer-box">Your answer will appear here.</div>
+    <div id="tool-log"></div>
+  </div>
+
+</main>
+
+<script>
+async function loadKPIs() {
+  const [ticket, repeat] = await Promise.all([
+    fetch('/api/stats/average-ticket').then(r => r.json()),
+    fetch('/api/stats/repeat-customer-rate').then(r => r.json()),
+  ]);
+  document.getElementById('kpi-revenue').textContent = '$' + ticket.total_revenue.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  document.getElementById('kpi-ticket').textContent  = '$' + ticket.avg_ticket.toFixed(2);
+  document.getElementById('kpi-txns').textContent    = ticket.total_transactions;
+  document.getElementById('kpi-repeat').textContent  = (repeat.repeat_rate * 100).toFixed(1) + '%';
+  document.getElementById('kpi-repeat-sub').textContent = repeat.repeat_customers + ' of ' + repeat.total_customers + ' customers';
+}
+
+async function loadRevenueChart() {
+  const data = await fetch('/api/stats/revenue-by-day').then(r => r.json());
+  // Weekly roll-up for readability
+  const weekly = {};
+  data.forEach(d => {
+    const dt = new Date(d.date + 'T00:00:00');
+    const sun = new Date(dt); sun.setDate(dt.getDate() - dt.getDay());
+    const key = sun.toISOString().slice(0, 10);
+    weekly[key] = (weekly[key] || 0) + d.revenue;
+  });
+  const labels = Object.keys(weekly).sort();
+  const values = labels.map(k => +weekly[k].toFixed(2));
+  new Chart(document.getElementById('chart-revenue'), {
+    type: 'line',
+    data: {
+      labels: labels.map(l => { const d = new Date(l + 'T00:00:00'); return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}); }),
+      datasets: [{ label: 'Weekly Revenue', data: values, fill: true,
+        backgroundColor: 'rgba(91,55,32,.12)', borderColor: '#5a3520', tension: 0.4, pointRadius: 3 }]
+    },
+    options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => '$'+v } } } }
+  });
+}
+
+async function loadItemsChart() {
+  const data = await fetch('/api/stats/top-items?n=7').then(r => r.json());
+  new Chart(document.getElementById('chart-items'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.item),
+      datasets: [{ label: 'Revenue', data: data.map(d => d.revenue),
+        backgroundColor: ['#3b1f0e','#5a3520','#7a5030','#9a7050','#ba9070','#dab090','#f0d0b0'] }]
+    },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { callback: v => '$'+v } } }
+    }
+  });
+}
+
+async function loadInsights() {
+  const btn = document.getElementById('insights-btn');
+  const box = document.getElementById('insights-text');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Analyzing…';
+  box.textContent = '';
+  try {
+    const data = await fetch('/api/insights').then(r => r.json());
+    box.textContent = data.insights || data.detail || 'No insights returned.';
+  } catch(e) {
+    box.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Refresh Insights';
+  }
+}
+
+async function ask(q) {
+  const input = document.getElementById('q-input');
+  const question = q || input.value.trim();
+  if (!question) return;
+  input.value = question;
+  const btn = document.getElementById('ask-btn');
+  const box = document.getElementById('answer-box');
+  const log = document.getElementById('tool-log');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Thinking…';
+  box.textContent = 'Looking up the real numbers…';
+  log.textContent = '';
+  try {
+    const data = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    }).then(r => r.json());
+    box.textContent = data.answer || data.detail || 'No answer.';
+    if (data.tool_calls && data.tool_calls.length) {
+      log.textContent = 'Tools used: ' + data.tool_calls.map(t => t.tool).join(', ');
+    }
+  } catch(e) {
+    box.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ask';
+  }
+}
+
+loadKPIs();
+loadRevenueChart();
+loadItemsChart();
+</script>
+</body>
+</html>
